@@ -49,7 +49,6 @@ if __name__ == '__main__':
     #Set up plot
     fig, ax = plt.subplots()
     ax.grid()
-    ax.set_box_aspect(1)
 
     #Frame about the larger orbit
     ax.set_xlim([-1.1 * max(a_1, a_2) * (1 - ecc), 1.1 * max(a_1, a_2) * (1 + ecc)])
