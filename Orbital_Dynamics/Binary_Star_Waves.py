@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from Keppler_Equation.keppler import solve_keppler
 
 class Binary_System:
     def __init__(s, ecc, T, R=100, m_1=10, m_2=1, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0):
@@ -168,7 +169,10 @@ class Binary_System:
         ani = FuncAnimation(fig, animate, frames=th.size, interval=15, \
                             fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2])
 
-
-        #f_name = f'animation_th_p_{s.th_p}_ecc_{s.ecc}_i_{s.i}_th_n_{s.th_n}_a_{s.a}_phi_{s.phi}_R_{s.R}_m_1_{s.m_1}_m_2_{s.m_2}.mpeg'
-        #ani.save(f_name)
         plt.show()
+
+    def psi(s,t):
+        return solve_keppler(t, s.T, s.ecc) #Solve for psi at time samples
+
+    def th(s, t):
+        return np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc))) * psi(t, s.T, s.ecc)
