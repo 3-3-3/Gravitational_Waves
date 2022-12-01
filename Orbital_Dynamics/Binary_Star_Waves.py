@@ -3,27 +3,34 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 class Binary_System:
-    def __init__(s, th_p, ecc, i, th_n, a, phi, R, m_1, m_2, dec, ra):
+    def __init__(s, ecc, T, R=100, m_1=10, m_2=1, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0):
         '''
-        th_p: Value of th (angular displacement) at pariapse
         ecc: Eccentricity of orbit
+        T: Orbital Period
+        th_p: Value of th (angular displacement) at pariapse
         i: Inclination of orbital plane from sky tangent plane
         th_n: Value of th at node line
         a: Semi-major axis of orbit, a = a_1 + a_2, where a_1 and a_2 are the
         respective axes for m_1 and m_2
         phi: Oritentation of node lin in sky
-        R: Position of center of mass of binary system
+        R: Distance to center of mass of binary system
         m_1: Primary
         m_2: Secondary
         dec: Declination of source
         ra: Right ascension of source
         '''
 
-        s.th_p = th_p; s.ecc = ecc; s.i = i; s.th_n = th_n; s.phi = phi; s.R = R
-        s.a = a #Semi-major radius of reduced mass, one body orbit
+        s.ecc = ecc; s.T = T; s.th_p = th_p; s.i = i; s.th_n = th_n; s.phi = phi; s.R = R
 
         s.m_1 = m_1; s.m_2 = m_2 #Primary mass, secondary mass
         s.beta = s.m_2 / s.m_1 #Mass Ratio
+        s.m_red = s.m_1 * s.m_2 / (s.m_1 + s.m_2) #Reduced mass
+
+        s.G = 1 #Just choose units where G and c are one... for now. Easy enough to update later on
+        s.c = 1
+
+        #Semi-major axis of reduced mass orbit
+        s.a = np.cbrt(s.G * m_1 * m_2 * T ** 2 / (4 * np.pi ** 2 * s.m_red))
 
         #Semi-major axes of m_2 and m_1
         s.a_2 = s.a / (1 + s.beta)
@@ -33,16 +40,18 @@ class Binary_System:
         s.b_1 = np.sqrt((1 - s.ecc ** 2) * s.a_1 ** 2)
         s.b_2 = np.sqrt((1 - s.ecc ** 2) * s.a_2 ** 2)
 
-        s.G = 1
-        s.c = 1
-        s.H = (4 * s.G ** 2 * s.m_1 * s.m_2) / (s.c ** 4 * s.a * (1 - s.ecc ** 2) * s.R)
+        s.H = (4 * s.G ** 2 * s.m_1 * s.m_2) / (s.c ** 4 * s.a * (1 - s.ecc ** 2) * s.R) #Scaling term from Wahlquist
 
-        s.ra = ra
-        s.dec = dec
+        #Star coordinates; generally given in degrees I believe, but I am converting to radians
+        #So that I do not need to convert everytime I call np.cos or np.sin
+        s.ra = ra * (np.pi / 180)
+        s.dec = dec * (np.pi / 180)
 
         s.a_hat = np.array([-np.sin(s.ra), np.cos(s.ra), 0]) #Unit vector in increasing right ascencion
         s.d_hat = np.array([-np.sin(s.dec) * np.cos(s.ra), -np.sin(s.dec) * np.sin(s.ra), np.cos(s.dec)])
+
         #Tensordot (a, b), last arg 0: matrix [[a_xb_x, a_xb_y, a_xb_z], [a_yb_x, a_yb_y, a_yb_z], [a_zb_x, a_zb_y, a_za_z]]
+        #Not really sure if this is correct, but doesn't really matter... we can just choose propogation in z
         s.e_plus = np.tensordot(s.a_hat, s.a_hat, 0) - np.tensordot(s.d_hat, s.d_hat, 0)
         s.e_cross = np.tensordot(s.a_hat, s.d_hat, 0) + np.tensordot(s.d_hat, s.a_hat, 0)
 
@@ -84,24 +93,6 @@ class Binary_System:
         return s.H * (np.cos(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
             - np.sin(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
-    def animate_h_plus(s, th):
-        def animate(t, h_p, line):
-            line.set_data(th[:t], h_p[:t])
-            return [line]
-
-
-        h_p = s.h_plus(th)
-        fig, ax = plt.subplots()
-        line, = ax.plot(th[:1], h_p[:1], color='green', label='h-plus')
-
-        ax.set_xlim(th.min(), th.max())
-        ax.set_ylim(h_p.min(), h_p.max())
-
-        ani = FuncAnimation(fig, animate, frames=th.size, interval=25, \
-                            fargs=[h_p, line])
-
-        plt.show()
-
     def h_cross(s, th):
         '''
         Cross polarization, as derived in Wahlquist
@@ -124,10 +115,14 @@ class Binary_System:
         def animate(t, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2):
             '''
             t: Frames being used as a proxy for parameter th
-            r_1: List of position vectors at each time for orbit 1
-            r_2: List of position vectors at each time for orbit 2
-            line_1: artist for first orbit
-            line_2: artist for second
+            r_1: List of position vectors at each theta for orbit 1
+            r_2: List of position vectors at each theta for orbit 2
+            h_p: List of magnitude of h-plus at various angles
+            h_c: List of magnitude of h-cross at various angles
+            orbit_1: artist for first orbit
+            orbit_2: artist for second orbit
+            line_1: artist for h_p
+            line_2: artist for h_c
             '''
             orbit_1.set_data(r_1[0, :t], r_1[1, :t])
             orbit_2.set_data(r_2[0, :t], r_2[1, :t])
@@ -172,4 +167,8 @@ class Binary_System:
 
         ani = FuncAnimation(fig, animate, frames=th.size, interval=15, \
                             fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2])
+
+
+        #f_name = f'animation_th_p_{s.th_p}_ecc_{s.ecc}_i_{s.i}_th_n_{s.th_n}_a_{s.a}_phi_{s.phi}_R_{s.R}_m_1_{s.m_1}_m_2_{s.m_2}.mpeg'
+        #ani.save(f_name)
         plt.show()
