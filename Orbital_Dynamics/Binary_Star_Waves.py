@@ -4,7 +4,7 @@ from matplotlib.animation import FuncAnimation
 from Keppler_Equation.keppler import solve_keppler
 
 class Binary_System:
-    def __init__(s, ecc, T, R=100, m_1=10, m_2=1, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0):
+    def __init__(s, ecc, T, R=100, m_1=10, m_2=1, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None):
         '''
         ecc: Eccentricity of orbit
         T: Orbital Period
@@ -56,6 +56,11 @@ class Binary_System:
         s.e_plus = np.tensordot(s.a_hat, s.a_hat, 0) - np.tensordot(s.d_hat, s.d_hat, 0)
         s.e_cross = np.tensordot(s.a_hat, s.d_hat, 0) + np.tensordot(s.d_hat, s.a_hat, 0)
 
+        if t == None:
+            s.t = np.array(0, 2 * T, 5000)
+        else:
+            s.t = t
+
 
     def A_0(s, th):
         '''
@@ -101,7 +106,7 @@ class Binary_System:
         return s.H * (np.sin(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
             + np.cos(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
-    def areal_velocity_1(s, t):
+    def areal_velocity_1(s):
         def r(th, a_p, ecc_p):
             '''
             th: Parameter th
@@ -110,17 +115,19 @@ class Binary_System:
             '''
             return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
 
-        da_1 = np.empty(t.size - 1)
-        theta = s.th(t)
-        for i in range(t.size - 1):
+
+        theta = s.th()
+        da_1 = np.empty(theta.size - 1)
+
+        for i in range(s.t.size - 1):
             r_ave = (r(theta[i + 1], s.a_1, s.ecc) + r(theta[i], s.a_1, s.ecc)) / 2
-            d_theta_d_t = (theta[i + 1] - theta[i]) / (t[i + 1] - t[i])
+            d_theta_d_t = (theta[i + 1] - theta[i]) / (s.t[i + 1] - s.t[i])
             da_1[i] = r_ave ** 2 * d_theta_d_t
 
 
         return da_1
 
-    def areal_velocity_2(s, t):
+    def areal_velocity_2(s):
         def r(th, a_p, ecc_p):
             '''
             th: Parameter th
@@ -129,17 +136,19 @@ class Binary_System:
             '''
             return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
 
-        da_2 = np.empty(t.size - 1)
-        theta = s.th(t)
-        for i in range(t.size - 2):
+
+        theta = s.th()
+        da_2 = np.empty(theta.size - 1)
+
+        for i in range(s.t.size - 2):
             r_ave = (r(theta[i + 1], s.a_2, s.ecc) + r(theta[i], s.a_2, s.ecc)) / 2
-            d_theta_d_t = (theta[i + 1] - theta[i]) / (t[i + 1] - t[i])
+            d_theta_d_t = (theta[i + 1] - theta[i]) / (s.t[i + 1] - s.t[i])
             da_2[i] = r_ave ** 2 * d_theta_d_t
 
 
         return da_2
 
-    def animate_orbits(s, t):
+    def animate_orbits(s):
         '''
         Visualize star orbit (in the orbital plane)
         '''
@@ -166,12 +175,12 @@ class Binary_System:
             orbit_1.set_data(r_1[0, :f], r_1[1, :f])
             orbit_2.set_data(r_2[0, :f], r_2[1, :f])
 
-            line_1.set_data(t[:f], h_p[:f])
-            line_2.set_data(t[:f], h_c[:f])
+            line_1.set_data(s.t[:f], h_p[:f])
+            line_2.set_data(s.t[:f], h_c[:f])
 
             return [orbit_1, orbit_2, line_1, line_2]
 
-        th = s.th(t) #theta array as a function of time
+        th = s.th() #theta array as a function of time
 
         r_1 = r(th, s.a_1, s.ecc) * np.array([np.cos(th - s.th_p), np.sin(th - s.th_p)])
         r_2 = r(th, s.a_2, s.ecc) * np.array([-np.cos(th - s.th_p), -np.sin(th - s.th_p)])
@@ -196,8 +205,8 @@ class Binary_System:
         orbit_2, = axes[0].plot(r_2[0, :1], r_2[1, :1], 'o-', color='purple', \
                         label='Secondary', mfc='r', mec='r', markersize=10, markevery=[-1])
 
-        line_1, = axes[1].plot(t[:1], h_p[:1], color='green', label='h-plus')
-        line_2, = axes[1].plot(t[:1], h_c[:1], color='blue', label='h-cross')
+        line_1, = axes[1].plot(s.t[:1], h_p[:1], color='green', label='h-plus')
+        line_2, = axes[1].plot(s.t[:1], h_c[:1], color='blue', label='h-cross')
 
         axes[0].legend(loc='upper right')
         axes[1].legend(loc='upper right')
@@ -210,10 +219,10 @@ class Binary_System:
 
         plt.show()
 
-    def psi(s,t):
-        return solve_keppler(t, s.T, s.ecc) #Solve for psi at time samples
+    def psi(s):
+        return solve_keppler(s.t, s.T, s.ecc) #Solve for psi at time samples
 
-    def th(s, t):
+    def th(s):
         #x = np.cos(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t / 2)))
         #y = np.sin(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t / 2)))
-        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t) / 2)) #theta as a function of time
+        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi() / 2)) #theta as a function of time
