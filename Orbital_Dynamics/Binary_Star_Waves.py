@@ -101,7 +101,45 @@ class Binary_System:
         return s.H * (np.sin(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
             + np.cos(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
-    def animate_orbits(s, th):
+    def areal_velocity_1(s, t):
+        def r(th, a_p, ecc_p):
+            '''
+            th: Parameter th
+            a_p: Semi-major axis of orbit
+            Returns: r to be used in parametric equation of ellipse
+            '''
+            return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
+
+        da_1 = np.empty(t.size - 1)
+        theta = s.th(t)
+        for i in range(t.size - 1):
+            r_ave = (r(theta[i + 1], s.a_1, s.ecc) + r(theta[i], s.a_1, s.ecc)) / 2
+            d_theta_d_t = (theta[i + 1] - theta[i]) / (t[i + 1] - t[i])
+            da_1[i] = r_ave ** 2 * d_theta_d_t
+
+
+        return da_1
+
+    def areal_velocity_2(s, t):
+        def r(th, a_p, ecc_p):
+            '''
+            th: Parameter th
+            a_p: Semi-major axis of orbit
+            Returns: r to be used in parametric equation of ellipse
+            '''
+            return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
+
+        da_2 = np.empty(t.size - 1)
+        theta = s.th(t)
+        for i in range(t.size - 2):
+            r_ave = (r(theta[i + 1], s.a_2, s.ecc) + r(theta[i], s.a_2, s.ecc)) / 2
+            d_theta_d_t = (theta[i + 1] - theta[i]) / (t[i + 1] - t[i])
+            da_2[i] = r_ave ** 2 * d_theta_d_t
+
+
+        return da_2
+
+    def animate_orbits(s, t):
         '''
         Visualize star orbit (in the orbital plane)
         '''
@@ -113,9 +151,9 @@ class Binary_System:
             '''
             return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
 
-        def animate(t, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2):
+        def animate(f, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2):
             '''
-            t: Frames being used as a proxy for parameter th
+            f: Frames being used as a proxy for parameter
             r_1: List of position vectors at each theta for orbit 1
             r_2: List of position vectors at each theta for orbit 2
             h_p: List of magnitude of h-plus at various angles
@@ -125,19 +163,20 @@ class Binary_System:
             line_1: artist for h_p
             line_2: artist for h_c
             '''
-            orbit_1.set_data(r_1[0, :t], r_1[1, :t])
-            orbit_2.set_data(r_2[0, :t], r_2[1, :t])
+            orbit_1.set_data(r_1[0, :f], r_1[1, :f])
+            orbit_2.set_data(r_2[0, :f], r_2[1, :f])
 
-            line_1.set_data(th[:t], h_p[:t])
-            line_2.set_data(th[:t], h_c[:t])
+            line_1.set_data(t[:f], h_p[:f])
+            line_2.set_data(t[:f], h_c[:f])
 
             return [orbit_1, orbit_2, line_1, line_2]
+
+        th = s.th(t) #theta array as a function of time
 
         r_1 = r(th, s.a_1, s.ecc) * np.array([np.cos(th - s.th_p), np.sin(th - s.th_p)])
         r_2 = r(th, s.a_2, s.ecc) * np.array([-np.cos(th - s.th_p), -np.sin(th - s.th_p)])
 
         h_p = s.h_plus(th)
-        plt.plot(th,h_p)
         h_c = s.h_cross(th)
 
         fig, axes = plt.subplots(2)
@@ -157,8 +196,8 @@ class Binary_System:
         orbit_2, = axes[0].plot(r_2[0, :1], r_2[1, :1], 'o-', color='purple', \
                         label='Secondary', mfc='r', mec='r', markersize=10, markevery=[-1])
 
-        line_1, = axes[1].plot(th[:1], h_p[:1], color='green', label='h-plus')
-        line_2, = axes[1].plot(th[:1], h_c[:1], color='blue', label='h-cross')
+        line_1, = axes[1].plot(t[:1], h_p[:1], color='green', label='h-plus')
+        line_2, = axes[1].plot(t[:1], h_c[:1], color='blue', label='h-cross')
 
         axes[0].legend(loc='upper right')
         axes[1].legend(loc='upper right')
@@ -166,7 +205,7 @@ class Binary_System:
         axes[0].grid()
         axes[1].grid()
 
-        ani = FuncAnimation(fig, animate, frames=th.size, interval=15, \
+        ani = FuncAnimation(fig, animate, frames=th.size, interval=10, \
                             fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2])
 
         plt.show()
@@ -175,4 +214,6 @@ class Binary_System:
         return solve_keppler(t, s.T, s.ecc) #Solve for psi at time samples
 
     def th(s, t):
-        return np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc))) * psi(t, s.T, s.ecc)
+        #x = np.cos(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t / 2)))
+        #y = np.sin(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t / 2)))
+        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t) / 2)) #theta as a function of time

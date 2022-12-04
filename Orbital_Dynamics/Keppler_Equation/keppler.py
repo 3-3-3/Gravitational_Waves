@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import fsolve
 
 def newton(f, f_p, x_0, tol,f_args=[],f_p_args=[]): #Logical option for Keppler because we have good x_0 and f_p
     '''
@@ -37,4 +38,4 @@ def solve_keppler(t_array, T, ecc):
 
     return np.array([
         newton(keppler, d_keppler, (2 * np.pi / T) * t, 1e-5, f_args=[t, T, ecc], f_p_args=[ecc])
-        for t in t_array])
+            for t in t_array])
