@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.optimize import fsolve
 
 def newton(f, f_p, x_0, tol,f_args=[],f_p_args=[]): #Logical option for Keppler because we have good x_0 and f_p
     '''

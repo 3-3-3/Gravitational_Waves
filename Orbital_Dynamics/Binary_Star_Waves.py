@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from Keppler_Equation.keppler import solve_keppler
+from quad.quad_routines import trap_quad
+import scipy.constants as pc
 
 class Binary_System:
     def __init__(s, ecc, T, R=100, m_1=10, m_2=6, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None):
@@ -27,8 +29,9 @@ class Binary_System:
         s.beta = s.m_2 / s.m_1 #Mass Ratio
         s.m_red = s.m_1 * s.m_2 / (s.m_1 + s.m_2) #Reduced mass
 
-        s.G = 1 #Just choose units where G and c are one... for now. Easy enough to update later on
-        s.c = 1
+        #Choose units of distance in au, time in years, and mass in solar masses
+        s.G = pc.G * (1 / 1.496e11) ** 3 * (1.989e30) * (60 * 60 * 24 * 365.25) ** 2
+        s.c = pc.c  * (1 / 1.496e11) * (60 * 60 * 24 * 365.25) #c in au per year
 
         #Semi-major axis of reduced mass orbit
         s.a = np.cbrt(s.G * m_1 * m_2 * T ** 2 / (4 * np.pi ** 2 * s.m_red))
@@ -41,6 +44,7 @@ class Binary_System:
         s.b_1 = np.sqrt((1 - s.ecc ** 2) * s.a_1 ** 2)
         s.b_2 = np.sqrt((1 - s.ecc ** 2) * s.a_2 ** 2)
 
+        #c_0 as defined in Peters; chose so a(e_0) = a_0
         s.H = (4 * s.G ** 2 * s.m_1 * s.m_2) / (s.c ** 4 * s.a * (1 - s.ecc ** 2) * s.R) #Scaling term from Wahlquist
 
         #Star coordinates; generally given in degrees I believe, but I am converting to radians
@@ -347,6 +351,62 @@ class Binary_System:
         if save: plt.savefig(r'Node_Orientation_Plots.png')
 
         if show: plt.show()
+
+    def de(s,T_between=1):
+        '''
+        change in eccentricity per orbit as found by approximating Peters eq. 5.7
+        T_between: number of periods to approximate with
+        '''
+        return -304 / 15 * s.ecc * (s.G ** 3 * s.m_1 * s.m_2 * (s.m_1 + s.m_2)) \
+                / (s.c ** 5 * s.a ** 4 * (1 - s.ecc ** 2) ** (5/2)) \
+                * (1 + (121 / 304) * s.ecc ** 2) * s.T * T_between
+
+    def da(s,T_between=1):
+        '''
+        change in semi-major axis per orbit as found by approximating Peters eq. 5.6
+        T_between: number of periods to approximate with
+        '''
+        return -64 / 5 * (s.G ** 3 * s.m_1 * s.m_2 * (s.m_1 + s.m_2)) \
+                            / (s.c ** 5 * s.a ** 3 * (1 - s.ecc ** 2) ** (7/2)) \
+                            * (1 + 73 / 24 * s.ecc ** 2 + 37 / 96 * s.ecc ** 4) * s.T * T_between
+
+    def da_de(s,T_between=1):
+        '''
+        change in semi-major axis per change in eccentricity as approximated by Peters eq. 5.8
+        T_between: number of periods to approximate with
+        '''
+        return 12 / 19 * (s.a / s.ecc) \
+                    * (1 + (73 / 24) * s.ecc ** 2 + (37 / 96) * s.ecc ** 4) \
+                    / ((1 - s.ecc ** 2) * (1 + (121 / 304) * s.ecc ** 2)) * T_between
+
+    def dE(s,T_between=1):
+        '''
+        change in energy of system per orbit as approximated by Peters eq. 5.4
+        T_between: number of periods to approximate with
+        '''
+        return -32 / 5 * (s.G ** 4 * s.m_1 ** 2 * s.m_2 ** 2 * (s.m_1 + s.m_2)) \
+                        / (s.c ** 5 * s.a ** 5 * (1 - s.ecc ** 2) ** (7 / 2)) \
+                        * (1 + 73 / 24 * s.ecc ** 2 + 37 / 96 * s.ecc ** 4) * s.T * T_between
+
+    def de_dt(s, periods, calc_every=1):
+        t_array = np.arange(0,int(periods),int(calc_every))
+        ecc_array = np.empty(t_array.size)
+        a_array = np.empty(t_array.size)
+
+        for i in range(t_array.size):
+            s.ecc = s.ecc + s.de(T_between=calc_every)
+            s.a = s.a + s.da(T_between=calc_every)
+
+            if s.a <= 0 or s.ecc <= 0:
+                return (t_array, ecc_array, a_array)
+
+            ecc_array[i] = s.ecc
+            a_array[i] = s.a
+
+
+        return (t_array, ecc_array, a_array)
+
+
 
 if __name__ == '__main__':
     b = Binary_System(0.6, 1)
