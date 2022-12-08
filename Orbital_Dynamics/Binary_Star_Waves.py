@@ -6,7 +6,7 @@ from quad.quad_routines import trap_quad
 import scipy.constants as pc
 
 class Binary_System:
-    def __init__(s, ecc, T, R=100, m_1=10, m_2=6, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None):
+    def __init__(s, ecc, T, R=100, m_1=10, m_2=6, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None, min_a=0):
         '''
         ecc: Eccentricity of orbit
         T: Orbital Period
@@ -66,6 +66,12 @@ class Binary_System:
             s.t = t
 
         plt.style.use('ggplot')
+
+        s.min_a = min_a
+        s.count = 0
+        s.ecc_array = np.empty(1e10)
+        s.a_array = np.empty(1e10)
+        s.T_array = np.empty(1e10)
 
 
     def A_0(s, th):
@@ -388,23 +394,33 @@ class Binary_System:
                         / (s.c ** 5 * s.a ** 5 * (1 - s.ecc ** 2) ** (7 / 2)) \
                         * (1 + 73 / 24 * s.ecc ** 2 + 37 / 96 * s.ecc ** 4) * s.T * T_between
 
-    def de_dt(s, periods, calc_every=1):
-        t_array = np.arange(0,int(periods),int(calc_every))
-        ecc_array = np.empty(t_array.size)
-        a_array = np.empty(t_array.size)
-
-        for i in range(t_array.size):
-            s.ecc = s.ecc + s.de(T_between=calc_every)
-            s.a = s.a + s.da(T_between=calc_every)
-
-            if s.a <= 0 or s.ecc <= 0:
-                return (t_array, ecc_array, a_array)
-
-            ecc_array[i] = s.ecc
-            a_array[i] = s.a
+    def step(s, calc_every=1e4):
+        if s.count == s.t_array.size:
+            s.h_array = np.arange(2 * h_array.size)
+            s.ecc_array.resize(2 * ecc_array.size)
+            s.a_array.resize(2 * a_array.size)
+            s.T_array.resize(2 * T_array.size)
 
 
-        return (t_array, ecc_array, a_array)
+        s.ecc = s.ecc + s.de(T_between=calc_every)
+        s.a = s.a + s.da(T_between=calc_every)
+        s.T = np.sqrt((4 * np.pi ** 2 * s.m_red * s.a ** 3) / (s.G * s.m_1 * s.m_2))
+
+        if s.a <= s.min_a:
+            return True
+
+        s.count += 1
+        if s.count % 10000 == 0:
+            print(f'Step: {s.count}')
+        s.ecc_array[count] = s.ecc; s.a_array[count] = s.a; s.T_array[count] = s.T
+        return False
+
+    def orbit_decay(s):
+        if s.step():
+            return (s.T_array, s.ecc_array, s.a_array)
+        return s.orbit_dec()
+
+
 
 
 
