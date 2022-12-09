@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from Keppler_Equation.keppler import solve_keppler
+import scipy.constants as pc
 
 class Binary_System:
-    def __init__(s, ecc, T, R=100, m_1=10, m_2=6, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None):
+    def __init__(s, ecc, T, R=100, m_1=10, m_2=6, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None, a_min=0):
         '''
         ecc: Eccentricity of orbit
         T: Orbital Period
@@ -20,8 +21,9 @@ class Binary_System:
         dec: Declination of source
         ra: Right ascension of source
         '''
-
+        s.ecc_0 = ecc;
         s.ecc = ecc; s.T = T; s.th_p = th_p; s.i = i; s.th_n = th_n; s.phi = phi; s.R = R
+        s.a_min = a_min
 
         s.m_1 = m_1; s.m_2 = m_2 #Primary mass, secondary mass
         s.beta = s.m_2 / s.m_1 #Mass Ratio
@@ -32,6 +34,7 @@ class Binary_System:
 
         #Semi-major axis of reduced mass orbit
         s.a = np.cbrt(s.G * m_1 * m_2 * T ** 2 / (4 * np.pi ** 2 * s.m_red))
+        s.a_0 = np.cbrt(s.G * m_1 * m_2 * T ** 2 / (4 * np.pi ** 2 * s.m_red))
 
         #Semi-major axes of m_2 and m_1
         s.a_2 = s.a / (1 + s.beta)
@@ -62,6 +65,10 @@ class Binary_System:
             s.t = t
 
         plt.style.use('ggplot')
+
+        s.R_star = np.cbrt(4 * s.G ** 3 * s.m_red ** 2 / s.c ** 6)
+        s.a_til = s.a / s.R_star
+
 
 
     def A_0(s, th):
@@ -118,7 +125,7 @@ class Binary_System:
             return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
 
 
-        theta = s.th()
+        theta = s.th(s.t)
         da_1 = np.empty(theta.size - 1)
 
         for i in range(s.t.size - 1):
@@ -139,7 +146,7 @@ class Binary_System:
             return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
 
 
-        theta = s.th()
+        theta = s.th(s.t)
         da_2 = np.empty(theta.size - 1)
 
         for i in range(s.t.size - 2):
@@ -182,7 +189,7 @@ class Binary_System:
 
             return [orbit_1, orbit_2, line_1, line_2]
 
-        th = s.th() #theta array as a function of time
+        th = s.th(s.t) #theta array as a function of time
 
         r_1 = r(th, s.a_1, s.ecc) * np.array([np.cos(th - s.th_p), np.sin(th - s.th_p)])
         r_2 = r(th, s.a_2, s.ecc) * np.array([-np.cos(th - s.th_p), -np.sin(th - s.th_p)])
@@ -240,24 +247,30 @@ class Binary_System:
 
         plt.show()
 
-    def psi(s):
+    def psi(s, t):
         '''
         Numerically solves the Keppler equation at each discrete time in s.t
         '''
-        return solve_keppler(s.t, s.T, s.ecc) #Solve for psi at time samples
+        return solve_keppler(t, s.T, s.ecc) #Solve for psi at time samples
 
     def th(s):
         '''
         Uses s.psi to calculate theta at each discrete time in s.t
         '''
-        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi() / 2)) #theta as a function of time
+        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(s.t) / 2)) #theta as a function of time
+
+    def th(s,t):
+        '''
+        Uses s.psi to calculate theta at each discrete time in a given time array t
+        '''
+        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t) / 2)) #theta as a function of time
 
     def wave_plots(s, ax):
         '''
         Function to plot waveforms, to be used in iteration methods
         '''
-        h_p = s.h_plus(s.th())
-        h_c = s.h_cross(s.th())
+        h_p = s.h_plus(s.th(s.t))
+        h_c = s.h_cross(s.th(s.t))
 
 
         ax.plot(s.t, h_p, color='Green', label='h-plus')
@@ -347,6 +360,106 @@ class Binary_System:
         if save: plt.savefig(r'Node_Orientation_Plots.png')
 
         if show: plt.show()
+
+    def a_e(s, ecc):
+        '''
+        semi-major axis as a function of eccentricity
+        As given by Maggoire 4.128
+        '''
+        def g(e):
+            return e ** (12 / 19) / (1 - e ** 2) * (1 + 121 / 304 * e ** 2) ** (870 / 2299)
+
+        return s.a_0 * g(ecc) / g(s.ecc_0)
+
+    def da_dtau(s):
+        '''
+        Dimensionless differential equation for major axis
+        '''
+        return - (16 / 5) * 1 / s.a_til ** 3 * 1 / ((1 - s.ecc ** 2) ** (7 / 2)) \
+                * (1 + 73 / 24 * s.ecc ** 2 + 37 / 96 * s.ecc ** 4)
+
+    def de_dtau(s):
+        '''
+        Dimensionless differential equation for eccentricity
+        '''
+        return -76 / 15 * 1 / s.a_til ** 4 * s.ecc / ((1 - s.ecc ** 2) ** (5 / 2)) \
+                * (1 + 121 / 304 * s.ecc ** 2)
+
+    def set_a(s, a):
+        '''
+        Set a, the semi-major axis
+        and update T  and a_til accordingly
+        '''
+        s.a = a
+        s.T = np.sqrt((4 * np.pi ** 2 * s.m_red * s.a ** 3) / (s.G * s.m_1 * s.m_2))
+        s.a_til = s.a / s.R_star
+        return (s.a, s.a_til, s.T)
+
+    def set_a_til(s, a_til):
+        '''
+        Set a_til, dimensionless a
+        and update T and a accordingly
+        '''
+        s.a_til = a_til
+        s.a = s.a_til * s.R_star
+        s.T = np.sqrt((4 * np.pi ** 2 * s.m_red * s.a ** 3) / (s.G * s.m_1 * s.m_2))
+        return (s.a, s.a_til, s.T)
+
+    def tau(s,t):
+        '''
+        dimensionless time, measured in time it takes for light
+        to travel R_star
+        '''
+        return s.c * t / s.R_star
+
+    def animate_last_orbits(s,ecc):
+        '''
+        animate the last few orbits before the stars collide
+        '''
+        a = s.a_e(ecc)
+        #set ecc, a to when stars collide
+        s.ecc = ecc; s.set_a(a)
+
+
+        def r(th, a_p, ecc_p):
+            '''
+            th: Parameter th
+            a_p: Semi-major axis of orbit
+            Returns: r to be used in parametric equation of ellipse
+            '''
+            return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
+
+        tau_array = s.tau(np.linspace(0,1000000,10000000))
+        h_c = np.empty(tau_array.size)
+        h_p = np.empty(tau_array.size)
+        r_array = np.empty(tau_array.size)
+        th_array = np.empty(tau_array.size)
+        print(f'[*] Beginning Euler steps: a_til: {s.a_til}, ecc: {s.ecc}')
+
+        #proceed with Euler steps of size tau through back to where star blow up
+        for i in range(tau_array.size):
+            #Euler steps
+            try:
+                s.ecc = s.ecc + s.de_dtau() * tau_array[i]
+                s.set_a_til(s.a_e(s.ecc))
+                print(f'[**] Step: {i}, ecc: {s.ecc}, a_til: {s.a_til}')
+                #Orbit and GW
+                th_array[i] = s.th(np.array([tau_array[i]]))
+                h_c[i] = s.h_cross(th_array[i])
+                h_p[i] = s.h_plus(th_array[i])
+                r_array[i] = r(th_array[i], s.a, s.ecc)
+
+            except RecursionError:
+                print(f'RecursionError: Stopping at step: {i}')
+
+        return (tau_array, r_array, th_array, h_c, h_p)
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     b = Binary_System(0.6, 1)

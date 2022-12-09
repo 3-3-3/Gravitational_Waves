@@ -69,6 +69,8 @@ class Adaptive_Euler_Stepper:
         y_1 = euler_step(h)
         y_2 = euler_step(h / 2)
 
+
+
         if (y_2 - y_1) < tol:
             return y_2
         else:
