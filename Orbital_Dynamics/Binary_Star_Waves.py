@@ -412,13 +412,13 @@ class Binary_System:
         '''
         return s.c * t / s.R_star
 
-    def animate_last_orbits(s,ecc):
+    def animate_last_orbits(s,ecc_start,t_f,points):
         '''
         animate the last few orbits before the stars collide
         '''
-        a = s.a_e(ecc)
+        a = s.a_e(ecc_start)
         #set ecc, a to when stars collide
-        s.ecc = ecc; s.set_a(a)
+        s.ecc = ecc_start; s.set_a(a)
 
 
         def r(th, a_p, ecc_p):
@@ -429,7 +429,7 @@ class Binary_System:
             '''
             return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
 
-        tau_array = s.tau(np.linspace(0,1000000,10000000))
+        tau_array = s.tau(np.linspace(0,int(t_f),int(points)))
         h_c = np.empty(tau_array.size)
         h_p = np.empty(tau_array.size)
         r_array = np.empty(tau_array.size)
@@ -451,15 +451,10 @@ class Binary_System:
 
             except RecursionError:
                 print(f'RecursionError: Stopping at step: {i}')
+                print(f'tau_f: {tau_array[i-1]}')
+                return (tau_array[:i], r_array[:i], th_array[:i], h_c[:i], h_p[:i])
 
         return (tau_array, r_array, th_array, h_c, h_p)
-
-
-
-
-
-
-
 
 if __name__ == '__main__':
     b = Binary_System(0.6, 1)
