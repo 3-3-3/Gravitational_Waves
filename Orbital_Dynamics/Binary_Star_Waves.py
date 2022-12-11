@@ -44,8 +44,6 @@ class Binary_System:
         s.b_1 = np.sqrt((1 - s.ecc ** 2) * s.a_1 ** 2)
         s.b_2 = np.sqrt((1 - s.ecc ** 2) * s.a_2 ** 2)
 
-        s.H = (4 * s.G ** 2 * s.m_1 * s.m_2) / (s.c ** 4 * s.a * (1 - s.ecc ** 2) * s.R) #Scaling term from Wahlquist
-
         #Star coordinates; generally given in degrees I believe, but I am converting to radians
         #So that I do not need to convert everytime I call np.cos or np.sin
         s.ra = ra * (np.pi / 180)
@@ -101,18 +99,24 @@ class Binary_System:
     def B_2(s, th):
         return 1 / 2 * np.cos(s.i) * np.sin(2 * s.th_n - s.th_p)
 
+    def H(s):
+        '''
+        Scaling factor in Wahlquist
+        '''
+        return (4 * s.G ** 2 * s.m_1 * s.m_2) / (s.c ** 4 * s.a * (1 - s.ecc ** 2) * s.R)
+
     def h_plus(s, th):
         '''
         Plus polarization, as derived in Wahlquist
         '''
-        return s.H * (np.cos(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
+        return s.H() * (np.cos(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
             - np.sin(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
     def h_cross(s, th):
         '''
         Cross polarization, as derived in Wahlquist
         '''
-        return s.H * (np.sin(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
+        return s.H() * (np.sin(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
             + np.cos(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
     def areal_velocity_1(s):
@@ -253,17 +257,15 @@ class Binary_System:
         '''
         return solve_keppler(t, s.T, s.ecc) #Solve for psi at time samples
 
-    def th(s):
-        '''
-        Uses s.psi to calculate theta at each discrete time in s.t
-        '''
-        return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(s.t) / 2)) #theta as a function of time
-
-    def th(s,t):
+    def th(s,t=None):
         '''
         Uses s.psi to calculate theta at each discrete time in a given time array t
         '''
+        if type(t) == type(None):
+            t = s.t
         return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t) / 2)) #theta as a function of time
+
+
 
     def wave_plots(s, ax):
         '''
@@ -378,12 +380,15 @@ class Binary_System:
         return - (16 / 5) * 1 / s.a_til ** 3 * 1 / ((1 - s.ecc ** 2) ** (7 / 2)) \
                 * (1 + 73 / 24 * s.ecc ** 2 + 37 / 96 * s.ecc ** 4)
 
-    def de_dtau(s):
+    def de_dtau(s, e=None):
         '''
         Dimensionless differential equation for eccentricity
         '''
-        return -76 / 15 * 1 / s.a_til ** 4 * s.ecc / ((1 - s.ecc ** 2) ** (5 / 2)) \
-                * (1 + 121 / 304 * s.ecc ** 2)
+        if e == None:
+            return -76 / 15 * (1 / s.a_e(s.ecc) ** 4) * s.ecc / (1 - s.ecc ** 2) ** (5 / 2) * (1 + 121 / 304 * s.ecc ** 2)
+
+        return -76 / 15 * (1 / s.a_e(e) ** 4) * e / (1 - e ** 2) ** (5 / 2) * (1 + 121 / 304 * e ** 2)
+
 
     def set_a(s, a):
         '''
@@ -412,49 +417,110 @@ class Binary_System:
         '''
         return s.c * t / s.R_star
 
-    def animate_last_orbits(s,ecc_start,t_f,points):
+    def ecc_step(s, e_n, dtau):
+        '''
+        Take a Runge-Kutta step on the eccentricity, and return e_next
+        '''
+        k_1 = dtau * (s.de_dtau(e=e_n)) #Euler step
+        k_2 = dtau * (s.de_dtau(e=e_n + 0.5 * k_1)) #First correction
+        k_3 = dtau * (s.de_dtau(e=e_n + 0.5 * k_2)) #Second correction
+        k_4 = dtau * (s.de_dtau(e=e_n + 0.5 * k_3)) #Third correction
+
+        return e_n + 1/6 * k_1 + 1 / 3 * k_2 + 1 / 3 * k_3 + 1 / 6 * k_4
+
+    def last_orbits(s, ecc_start, tau_f, num_points):
+        '''
+        simulate the last few orbits before the stars collide
+        ecc_start: eccentricty to simulate the last few orbits from
+        tau_f: final time to end simulation at
+        num_points: Number of points to include in simulation
+
+        Returns: (tau, ecc, a, T, th, h_p, h_c) at each point included in simulation
+        '''
+        dtau = tau_f / num_points
+        tau_array = dtau * np.arange(num_points)
+        ecc_array = np.empty(tau_array.size); ecc_array[0] = ecc_start; s.ecc = ecc_start
+
+        a_array = np.empty(tau_array.size)
+        a_start = s.a_e(ecc_start); a_array[0] = a_start; s.a = a_start
+
+        T_array = np.empty(tau_array.size)
+        T_start = np.sqrt((4 * np.pi ** 2 * s.m_red * a_start ** 3) / (s.G * s.m_1 * s.m_2))
+        T_array[0] = T_start; s.T = T_start
+
+        th_array = np.empty(tau_array.size)
+        th_start = s.th(t=0)
+        th_array[0] = th_start
+
+        h_p_array = np.empty(tau_array.size)
+        h_p_array[0] = s.h_plus(th_start)
+
+        h_c_array = np.empty(tau_array.size)
+        h_c_array[0] = s.h_cross(th_start)
+
+        for i in range(1, tau_array.size):
+            #Step eccentricity; then, update and calculate a, T, h_plus, h_cross
+            print(f'step: {i}')
+            e_next = s.ecc_step(s.ecc, dtau)
+
+            if np.isnan(e_next):
+                tau_array = tau_array[:i-1]
+                ecc_array = ecc_array[:i-1]
+                a_array = a_array[:i-1]
+                T_array = T_array[:i-1]
+                th_array = th_array[:i-1]
+                h_p_array = h_p_array[:i-1]
+                h_c_array = h_c_array[:i-1]
+                break
+
+            #Store eccentricity history; update eccentricity
+            ecc_array[i] = e_next
+            s.ecc = e_next
+
+            #Store semi-major axis history; update semi-major axis
+            a_next = s.a_e(e_next)
+            a_array[i] = a_next
+            s.a = a_next
+
+            #Store period history; update period
+            T_next = np.sqrt((4 * np.pi ** 2 * s.m_red * a_next ** 3) / (s.G * s.m_1 * s.m_2))
+            T_array[i] = T_next
+            s.T = T_next
+
+            th_next = s.th(t=tau_array[i])
+            th_array[i] = th_next
+
+            h_p_array[i] = s.h_plus(th_next)
+            h_c_array[i] = s.h_cross(th_next)
+
+        return (tau_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
+
+
+    def ecc_euler(s, ecc_start, tau_f, num_points):
         '''
         animate the last few orbits before the stars collide
         '''
-        a = s.a_e(ecc_start)
-        #set ecc, a to when stars collide
-        s.ecc = ecc_start; s.set_a(a)
-
-
-        def r(th, a_p, ecc_p):
-            '''
-            th: Parameter th
-            a_p: Semi-major axis of orbit
-            Returns: r to be used in parametric equation of ellipse
-            '''
-            return a_p * (1 - ecc_p) * (1 + ecc_p) / (1 + ecc_p * np.cos(th))
-
-        tau_array = s.tau(np.linspace(0,int(t_f),int(points)))
-        h_c = np.empty(tau_array.size)
-        h_p = np.empty(tau_array.size)
-        r_array = np.empty(tau_array.size)
-        th_array = np.empty(tau_array.size)
-        print(f'[*] Beginning Euler steps: a_til: {s.a_til}, ecc: {s.ecc}')
+        dtau = tau_f / num_points
+        tau_array = dtau * np.arange(num_points)
+        ecc_array = np.empty(tau_array.size); ecc_array[0] = ecc_start
 
         #proceed with Euler steps of size tau through back to where star blow up
-        for i in range(tau_array.size):
-            #Euler steps
-            try:
-                s.ecc = s.ecc + s.de_dtau() * tau_array[i]
-                s.set_a_til(s.a_e(s.ecc))
-                print(f'[**] Step: {i}, ecc: {s.ecc}, a_til: {s.a_til}')
-                #Orbit and GW
-                th_array[i] = s.th(np.array([tau_array[i]]))
-                h_c[i] = s.h_cross(th_array[i])
-                h_p[i] = s.h_plus(th_array[i])
-                r_array[i] = r(th_array[i], s.a, s.ecc)
+        for i in range(1, tau_array.size):
+            e_n = ecc_array[i - 1]
 
-            except RecursionError:
-                print(f'RecursionError: Stopping at step: {i}')
-                print(f'tau_f: {tau_array[i-1]}')
-                return (tau_array[:i], r_array[:i], th_array[:i], h_c[:i], h_p[:i])
+            e_next = e_n + dtau * (s.de_dtau(e=e_n))
+            ecc_array[i] = e_next
+            s.ecc = e_next
 
-        return (tau_array, r_array, th_array, h_c, h_p)
+            if np.isnan(e_next):
+                tau_array = tau_array[:i-1]
+                ecc_array = ecc_array[:i-1]
+                break
+
+        return (tau_array, ecc_array)
+
+
+
 
 if __name__ == '__main__':
     b = Binary_System(0.6, 1)

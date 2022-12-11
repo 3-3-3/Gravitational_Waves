@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import fsolve
 
-def newton(f, f_p, x_0, tol,f_args=[],f_p_args=[]): #Logical option for Keppler because we have good x_0 and f_p
+def newton(f, f_p, x_0, tol, f_args=[],f_p_args=[]): #Logical option for Keppler because we have good x_0 and f_p
     '''
     f: function
     f_p: function first derivative
@@ -17,7 +17,7 @@ def newton(f, f_p, x_0, tol,f_args=[],f_p_args=[]): #Logical option for Keppler 
         x_new = (m * x_0 - f(x_0, *f_args)) / m
         return newton(f, f_p, x_new, tol,f_args=f_args, f_p_args=f_p_args)
 
-def solve_keppler(t_array, T, ecc):
+def solve_keppler(t, T, ecc):
     '''
     t_array: times to evaluate at
     T: Orbital period
@@ -36,6 +36,10 @@ def solve_keppler(t_array, T, ecc):
     #Initial guess; as most likely value of sin is zero
     #Simply use (2 * np.pi / T) * t for now
 
-    return np.array([
-        newton(keppler, d_keppler, (2 * np.pi / T) * t, 1e-5, f_args=[t, T, ecc], f_p_args=[ecc])
-            for t in t_array])
+    if type(t) == np.ndarray:
+        return np.array([
+            newton(keppler, d_keppler, (2 * np.pi / T) * time, 1e-5, f_args=[time, T, ecc], f_p_args=[ecc])
+                for time in t])
+
+    else:
+        return newton(keppler, d_keppler, (2 * np.pi / T) * t, 1e-5, f_args=[t, T, ecc], f_p_args=[ecc])
