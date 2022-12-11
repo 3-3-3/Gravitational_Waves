@@ -496,6 +496,78 @@ class Binary_System:
         return (tau_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
 
 
+    def animate_last_orbits(s, ecc_start, tau_f, num_points):
+        def r(th_array, a_array, ecc_array):
+            '''
+            Return x, y position of star as a and ecc decay
+            '''
+            r = a_array * (1 - ecc_array) * (1 + ecc_array) / (1 + ecc_array * np.cos(th_array))
+            return r
+
+        def animate(f, tau, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2):
+            '''
+            f: Frames being used as a proxy for parameter
+            r_1: List of position vectors at each theta for orbit 1
+            r_2: List of position vectors at each theta for orbit 2
+            h_p: List of magnitude of h-plus at various angles
+            h_c: List of magnitude of h-cross at various angles
+            orbit_1: artist for first orbit
+            orbit_2: artist for second orbit
+            line_1: artist for h_p
+            line_2: artist for h_c
+            '''
+            orbit_1.set_data(r_1[0, :f], r_1[1, :f])
+            orbit_2.set_data(r_2[0, :f], r_2[1, :f])
+
+            line_1.set_data(tau[:f], h_p[:f])
+            line_2.set_data(tau[:f], h_c[:f])
+
+            return [orbit_1, orbit_2, line_1, line_2]
+
+        tau, ecc, a, T, th, h_p, h_c = s.last_orbits(ecc_start, tau_f, num_points)
+
+        a_1 = a / (1 + s.beta); a_2 = a - a_1
+        r_decay = r(th,a_1,ecc)
+        r_1 = np.array([r_decay * np.cos(th), r_decay * np.sin(th)])
+        r_2 = np.array([-r_decay * np.cos(th), -r_decay * np.sin(th)])
+
+
+        fig, axes = plt.subplots(2,figsize=(7,7))
+        #Frame about the larger orbit
+        axes[0].set_xlim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
+        axes[0].set_ylim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
+
+        axes[1].set_xlim(tau.min(), tau.max())
+        axes[1].set_ylim(min(1.1 * min(h_p.min(), h_c.min()), 0.9 * min(h_p.min(), h_c.min())),
+                         max(1.1 * max(h_p.max(), h_c.max()), 0.9 * max(h_p.max(), h_c.max())))
+
+        #Artist objects returned from plot function and to be used in animation
+        orbit_1, = axes[0].plot(r_1[0, :1], r_1[1, :1], 'o-', color='pink', \
+                        label='Primary', mfc='r', mec='r', markersize=10, markevery=[-1])
+
+        orbit_2, = axes[0].plot(r_2[0, :1], r_2[1, :1], 'o-', color='purple', \
+                        label='Secondary', mfc='r', mec='r', markersize=10, markevery=[-1])
+
+        line_1, = axes[1].plot(tau[:1], h_p[:1], color='green', label='h-plus')
+        line_2, = axes[1].plot(tau[:1], h_c[:1], color='blue', label='h-cross')
+
+        axes[0].legend(loc='upper right')
+        axes[1].legend(loc='upper right')
+
+        axes[0].set_xlabel('x')
+        axes[0].set_ylabel('y')
+
+        axes[1].set_xlabel(r'$\tau$')
+        axes[1].set_ylabel('Wave Amplitude')
+
+        #Choose interval to complete an orbit in 10s
+        interval = (10 ** 3) / (num_points)  #interval measured in milliseconds
+
+        ani = FuncAnimation(fig, animate, frames=th.size, interval=1, \
+                            fargs=[tau, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2],repeat=False)
+
+        plt.show()
+
     def ecc_euler(s, ecc_start, tau_f, num_points):
         '''
         animate the last few orbits before the stars collide
