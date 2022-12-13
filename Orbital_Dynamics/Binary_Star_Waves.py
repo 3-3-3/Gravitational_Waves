@@ -421,12 +421,14 @@ class Binary_System:
         '''
         Take a Runge-Kutta step on the eccentricity, and return e_next
         '''
-        k_1 = dtau * (s.de_dtau(e=e_n)) #Euler step
-        k_2 = dtau * (s.de_dtau(e=e_n + 0.5 * k_1)) #First correction
-        k_3 = dtau * (s.de_dtau(e=e_n + 0.5 * k_2)) #Second correction
-        k_4 = dtau * (s.de_dtau(e=e_n + 0.5 * k_3)) #Third correction
+        k_1 = dtau * s.de_dtau(e=e_n) #Euler step
+        k_2 = dtau * s.de_dtau(e=e_n + 0.5 * k_1) #First correction
+        k_3 = dtau * s.de_dtau(e=e_n + 0.5 * k_2) #Second correction
+        k_4 = dtau * s.de_dtau(e=e_n + 0.5 * k_3) #Third correctionx
 
         return e_n + 1/6 * k_1 + 1 / 3 * k_2 + 1 / 3 * k_3 + 1 / 6 * k_4
+
+
 
     def last_orbits(s, ecc_start, tau_f, num_points):
         '''
@@ -561,7 +563,10 @@ class Binary_System:
         axes[1].set_ylabel('Wave Amplitude')
 
         #Choose interval to complete an orbit in 10s
-        interval = (10 ** 3) / (num_points)  #interval measured in milliseconds
+        if (10 ** 3) / (num_points) > 0:
+            interval = (10 ** 3) / (num_points)  #interval measured in milliseconds
+        else:
+            interval = 1 #interval cannot be less than 1
 
         ani = FuncAnimation(fig, animate, frames=th.size, interval=1, \
                             fargs=[tau, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2],repeat=False)
