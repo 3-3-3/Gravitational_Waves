@@ -1,7 +1,7 @@
 import numpy as np
 
 class OdeInt:
-    def __init__(s, de_tau, e_0, tau_0, dtau_0 tau_f, a_tol=0, r_tol=0):
+    def __init__(s, de_tau, e_0, tau_0, dtau_0, tau_f, a_tol=0, r_tol=0):
         s.e_0 = e_0
         s.tau = tau_0
         s.tau_0 = tau_0
@@ -31,6 +31,14 @@ class Adaptive_Stepper:
     Runge-Kutta stpper class
     '''
     def __init__(s, de_dtau, e_0, tau_0, dtau_0, a_tol=0, r_tol=0):
+        '''
+        de_dtau: derivative, function of tau and e
+        e_0: initial Eccentricity
+        tau_0: initial time
+        dtau_0: Guess for step size
+        a_tol: absolute tolerance
+        r_tol: relative tolerance
+        '''
         s.e_n = e_0
         s.tau = tau_0
         s.a_tol = a_tol
@@ -39,6 +47,7 @@ class Adaptive_Stepper:
         s.de_dtau = de_dtau
 
         #Stepper coefficients
+        s.c = np.array([0, 1 / 5, 3 / 10, 4 / 5, 8 / 9, 1, 1])
         s.b_i_5 = np.array([35 / 384, 0, 500 / 1113, 125 / 192, -2187 / 6784, 11 / 84, 0]) #coefficients for 5th order routine
         s.b_i_6 = np.array([5179 / 57600, 0, 7571 / 16695, 393 / 640, -92097 / 339200, 187 / 2100, 1 / 40]) #coefficients for 6th order routine
         s.a = np.array([[1/5, 0, 0, 0, 0, 0],
@@ -57,12 +66,12 @@ class Adaptive_Stepper:
 
         #Evaluate each k
         k = np.empty(6)
-        k[0] = s.dtau * s.de_dtau(s.e_n) #Euler step
-        k[1] = s.dtau * s.de_dtau(s.e_n + np.dot(s.a[0], k)) #Other steps
-        k[2] = s.dtau * s.de_dtau(s.e_n + np.dot(s.a[1], k))
-        k[3] = s.dtau * s.de_dtau(s.e_n + np.dot(s.a[2], k))
-        k[4] = s.dtau * s.de_dtau(s.e_n + np.dot(s.a[3], k))
-        k[5] = s.dtau * s.de_dtau(s.e_n + np.dot(s.a[4], k))
+        k[0] = s.dtau * s.de_dtau(s.tau, s.e_n) #Euler step
+        k[1] = s.dtau * s.de_dtau(s.tau + s.c[1] * s.tau, s.e_n + np.dot(s.a[0], k)) #Other steps
+        k[2] = s.dtau * s.de_dtau(s.tau + s.c[2] * s.tau, s.e_n + np.dot(s.a[1], k))
+        k[3] = s.dtau * s.de_dtau(s.tau + s.c[3] * s.tau, s.e_n + np.dot(s.a[2], k))
+        k[4] = s.dtau * s.de_dtau(s.tau + s.c[4] * s.tau, s.e_n + np.dot(s.a[3], k))
+        k[5] = s.dtau * s.de_dtau(s.tau + s.c[5] * s.tau, s.e_n + np.dot(s.a[4], k))
 
         e_5 = s.e_n + np.dot(k, s.b_i_5[:-1]); e_6 = s.e_n + np.dot(k, s.b_i_6[:-1]) #Calculate O(h^6) approximation and embedded O(h^5) approximation
 
@@ -73,10 +82,11 @@ class Adaptive_Stepper:
         scale = s.a_tol + max(s.e_n, e_6) * s.r_tol #Error we are shooting for
         err = np.sqrt((delta / scale) ** 2) #Ratio of step error to desired error, scale
 
+        print(f'e_n: {s.e_n}, tau: {s.tau}, dtau: {s.dtau}, e_5: {e_5}, e_6: {e_6}, error: {err}')
+
 
         #Return True if step size accepted, False otherwise
         if err <= 1:
-            print(f'e_n: {s.e_n}, tau: {s.tau}, dtau: {s.dtau}, e_5: {e_5}, e_6: {e_6}, k: {k}')
             s.e_n = e_6
             s.tau = s.tau + s.dtau
 
@@ -86,7 +96,6 @@ class Adaptive_Stepper:
 
 
         else:
-            print(f'e_n: {s.e_n}, tau: {s.tau}, dtau: {s.dtau}, e_5: {e_5}, e_6: {e_6}, k: {k}')
             #Because err > 1, it will be smaller; 0.95 is a safety factor
             s.dtau = 0.999999 * s.dtau * (1 / err) ** (1 / 5)
             #Try again

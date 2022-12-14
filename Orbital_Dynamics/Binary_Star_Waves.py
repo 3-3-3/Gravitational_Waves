@@ -235,7 +235,7 @@ class Binary_System:
         interval = (10 ** 3) / (n_points)  #interval measured in milliseconds
 
         ani = FuncAnimation(fig, animate, frames=th.size, interval=interval, \
-                            fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2])
+                            fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2], repeat=False)
 
         s_ecc = r'$\epsilon=$' + str(round(s.ecc, 2))
         s_phi = r'$\phi=$' + str(round(s.phi, 2))
@@ -410,12 +410,15 @@ class Binary_System:
         s.T = np.sqrt((4 * np.pi ** 2 * s.m_red * s.a ** 3) / (s.G * s.m_1 * s.m_2))
         return (s.a, s.a_til, s.T)
 
-    def tau(s,t):
+    def tau(s, t):
         '''
         dimensionless time, measured in time it takes for light
         to travel R_star
         '''
         return s.c * t / s.R_star
+
+    def t_from_tau(s, tau):
+        return s.R_star * tau / s.c
 
     def ecc_step(s, e_n, dtau):
         '''
@@ -430,13 +433,12 @@ class Binary_System:
 
 
 
-    def last_orbits(s, ecc_start, tau_f, num_points):
+    def last_orbits(s, ecc_start, tau_f, num_points, to_t_a=False):
         '''
         simulate the last few orbits before the stars collide
         ecc_start: eccentricty to simulate the last few orbits from
         tau_f: final time to end simulation at
         num_points: Number of points to include in simulation
-
         Returns: (tau, ecc, a, T, th, h_p, h_c) at each point included in simulation
         '''
         dtau = tau_f / num_points
@@ -495,7 +497,10 @@ class Binary_System:
             h_p_array[i] = s.h_plus(th_next)
             h_c_array[i] = s.h_cross(th_next)
 
+
         return (tau_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
+
+
 
 
     def animate_last_orbits(s, ecc_start, tau_f, num_points):
