@@ -3,6 +3,25 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from Keppler_Equation.keppler import solve_keppler
 import scipy.constants as pc
+from scipy.integrate import ode
+
+def to_au(L):
+    '''
+    meters to austronomical units
+    '''
+    return L / (pc.au)
+
+def to_days(t):
+    '''
+    Geometerized time to seconds
+    '''
+    return t / (24 * 60 * 60 * pc.c)
+
+def to_sm(M):
+    '''
+    Geometerized mass to solar mass
+    '''
+    return M * pc.c ** 2 / (pc.G) / 1.989e30
 
 class Binary_System:
     def __init__(s, ecc, T, R=100, m_1=10, m_2=6, th_p=0, i=0, th_n=0, phi=0, dec=0, ra=0, t=None, a_min=0):
@@ -58,14 +77,12 @@ class Binary_System:
         s.e_cross = np.tensordot(s.a_hat, s.d_hat, 0) + np.tensordot(s.d_hat, s.a_hat, 0)
 
         if t == None:
-            s.t = np.linspace(0, 2 * s.T, 2000)
+            s.t = np.linspace(0, s.T, 2000)
         else:
             s.t = t
 
         plt.style.use('ggplot')
 
-        s.R_star = np.cbrt(4 * s.G ** 3 * s.m_red ** 2 / s.c ** 6)
-        s.a_til = s.a / s.R_star
 
 
 
@@ -185,11 +202,11 @@ class Binary_System:
             line_1: artist for h_p
             line_2: artist for h_c
             '''
-            orbit_1.set_data(r_1[0, :f], r_1[1, :f])
-            orbit_2.set_data(r_2[0, :f], r_2[1, :f])
+            orbit_1.set_data(to_au(r_1[0, :f]), to_au(r_1[1, :f]))
+            orbit_2.set_data(to_au(r_2[0, :f]), to_au(r_2[1, :f]))
 
-            line_1.set_data(s.t[:f], h_p[:f])
-            line_2.set_data(s.t[:f], h_c[:f])
+            line_1.set_data(to_days(s.t[:f]), h_p[:f])
+            line_2.set_data(to_days(s.t[:f]), h_c[:f])
 
             return [orbit_1, orbit_2, line_1, line_2]
 
@@ -204,35 +221,39 @@ class Binary_System:
         fig, axes = plt.subplots(2,figsize=(7,7))
 
         #Frame about the larger orbit
-        axes[0].set_xlim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
-        axes[0].set_ylim([-1.1 * max(s.b_1, s.b_2), 1.1 * max(s.b_1, s.b_2)])
+        axes[0].set_xlim([1.1 * min(to_au(r_1[0].min()), to_au(r_2[0].min())), 1.1 * max(to_au(r_1[0].max()), to_au(r_2[0].max()))])
+        axes[0].set_ylim([-1.1 * to_au(max(s.b_1, s.b_2)), 1.1 * to_au(max(s.b_1, s.b_2))])
 
-        axes[1].set_xlim(s.t.min(), s.t.max())
+        axes[1].set_xlim(to_days(s.t.min()), to_days(s.t.max()))
         axes[1].set_ylim(min(1.1 * min(h_p.min(), h_c.min()), 0.9 * min(h_p.min(), h_c.min())),
                          max(1.1 * max(h_p.max(), h_c.max()), 0.9 * max(h_p.max(), h_c.max())))
 
         #Artist objects returned from plot function and to be used in animation
-        orbit_1, = axes[0].plot(r_1[0, :1], r_1[1, :1], 'o-', color='pink', \
+        orbit_1, = axes[0].plot(to_au(r_1[0, :1]), to_au(r_1[1, :1]), 'o-', color='pink', \
                         label='Primary', mfc='r', mec='r', markersize=10, markevery=[-1])
 
-        orbit_2, = axes[0].plot(r_2[0, :1], r_2[1, :1], 'o-', color='purple', \
+        orbit_2, = axes[0].plot(to_au(r_2[0, :1]), to_au(r_2[1, :1]), 'o-', color='purple', \
                         label='Secondary', mfc='r', mec='r', markersize=10, markevery=[-1])
 
-        line_1, = axes[1].plot(s.t[:1], h_p[:1], color='green', label='h-plus')
-        line_2, = axes[1].plot(s.t[:1], h_c[:1], color='blue', label='h-cross')
+        line_1, = axes[1].plot(s.t[:1], h_p[:1], color='green', label=r'$h_+$')
+        line_2, = axes[1].plot(s.t[:1], h_c[:1], color='blue', label=r'$h_x$')
 
         axes[0].legend(loc='upper right')
         axes[1].legend(loc='upper right')
 
-        axes[0].set_xlabel('x')
-        axes[0].set_ylabel('y')
+        axes[0].set_xlabel('x (au)')
+        axes[0].set_ylabel('y (au)')
 
-        axes[1].set_xlabel('t')
+        axes[1].set_xlabel('t (s)')
         axes[1].set_ylabel('Wave Amplitude')
 
         #Choose interval to complete an orbit in 10s
         n_points = s.t.size / (s.t.max() / s.T)
-        interval = (10 ** 3) / (n_points)  #interval measured in milliseconds
+
+        if 10 ** 3 / n_points > 1:
+            interval = (10 ** 3) / (n_points)  #interval measured in milliseconds
+        else:
+            interval = 1 #Interval cannot be less than 1
 
         ani = FuncAnimation(fig, animate, frames=th.size, interval=interval, \
                             fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2], repeat=False)
@@ -240,8 +261,8 @@ class Binary_System:
         s_ecc = r'$\epsilon=$' + str(round(s.ecc, 2))
         s_phi = r'$\phi=$' + str(round(s.phi, 2))
         s_i = r'$i=$' + str(round(s.i, 2))
-        s_m_1 = r'$m_1=$' + str(round(s.m_1, 2))
-        s_m_2 = r'$m_2=$' + str(round(s.m_2, 2))
+        s_m_1 = r'$m_1=$' + str(round(to_sm(s.m_1), 2)) + r'$M_{\odot}$'
+        s_m_2 = r'$m_2=$' + str(round(to_sm(s.m_2), 2)) + r'$M_{\odot}$'
 
         axes[0].set_title(f'Orbit Waves: {s_ecc}, {s_phi}, {s_i}, {s_m_1}, {s_m_2}')
 
@@ -265,8 +286,6 @@ class Binary_System:
             t = s.t
         return 2 * np.arctan(np.sqrt((1 + s.ecc) / (1 - s.ecc)) * np.tan(s.psi(t) / 2)) #theta as a function of time
 
-
-
     def wave_plots(s, ax):
         '''
         Function to plot waveforms, to be used in iteration methods
@@ -275,8 +294,8 @@ class Binary_System:
         h_c = s.h_cross(s.th(s.t))
 
 
-        ax.plot(s.t, h_p, color='Green', label='h-plus')
-        ax.plot(s.t, h_c, color='Blue', label='h-cross')
+        ax.plot(s.t, h_p, color='Green', label=r'$h_+$')
+        ax.plot(s.t, h_c, color='Blue', label=r'$h_x$')
 
 
 
@@ -373,21 +392,16 @@ class Binary_System:
 
         return s.a_0 * g(ecc) / g(s.ecc_0)
 
-    def da_dtau(s):
-        '''
-        Dimensionless differential equation for major axis
-        '''
-        return - (16 / 5) * 1 / s.a_til ** 3 * 1 / ((1 - s.ecc ** 2) ** (7 / 2)) \
-                * (1 + 73 / 24 * s.ecc ** 2 + 37 / 96 * s.ecc ** 4)
 
-    def de_dtau(s, e=None):
+    def de_dt(s, e=None):
         '''
-        Dimensionless differential equation for eccentricity
+        Differential equation for eccentricity
         '''
+        k = 304 / 15 * (s.G ** 3 * s.m_1 * s.m_2 * (s.m_1 + s.m_2) / s.c ** 5)
         if e == None:
-            return -76 / 15 * (1 / s.a_e(s.ecc) ** 4) * s.ecc / (1 - s.ecc ** 2) ** (5 / 2) * (1 + 121 / 304 * s.ecc ** 2)
+            return -k * (1 / s.a_e(s.ecc) ** 4) * s.ecc / ((1 - s.ecc ** 2) ** (5 / 2)) * (1 + 121 / 304 * s.ecc ** 2)
 
-        return -76 / 15 * (1 / s.a_e(e) ** 4) * e / (1 - e ** 2) ** (5 / 2) * (1 + 121 / 304 * e ** 2)
+        return -k * (1 / s.a_e(e) ** 4) * e / (1 - e ** 2) ** (5 / 2) * (1 + 121 / 304 * e ** 2)
 
 
     def set_a(s, a):
@@ -400,75 +414,55 @@ class Binary_System:
         s.a_til = s.a / s.R_star
         return (s.a, s.a_til, s.T)
 
-    def set_a_til(s, a_til):
-        '''
-        Set a_til, dimensionless a
-        and update T and a accordingly
-        '''
-        s.a_til = a_til
-        s.a = s.a_til * s.R_star
-        s.T = np.sqrt((4 * np.pi ** 2 * s.m_red * s.a ** 3) / (s.G * s.m_1 * s.m_2))
-        return (s.a, s.a_til, s.T)
-
-    def tau(s, t):
-        '''
-        dimensionless time, measured in time it takes for light
-        to travel R_star
-        '''
-        return s.c * t / s.R_star
-
-    def t_from_tau(s, tau):
-        return s.R_star * tau / s.c
-
-    def ecc_step(s, e_n, dtau):
+    def ecc_step(s, e_n, dt):
         '''
         Take a Runge-Kutta step on the eccentricity, and return e_next
         '''
-        k_1 = dtau * s.de_dtau(e=e_n) #Euler step
-        k_2 = dtau * s.de_dtau(e=e_n + 0.5 * k_1) #First correction
-        k_3 = dtau * s.de_dtau(e=e_n + 0.5 * k_2) #Second correction
-        k_4 = dtau * s.de_dtau(e=e_n + 0.5 * k_3) #Third correctionx
+        k_1 = dt * s.de_dt(e=e_n) #Euler step
+        k_2 = dt * s.de_dt(e=e_n + 0.5 * k_1) #First correction
+        k_3 = dt * s.de_dt(e=e_n + 0.5 * k_2) #Second correction
+        k_4 = dt * s.de_dt(e=e_n + 0.5 * k_3) #Third correctionx
 
         return e_n + 1/6 * k_1 + 1 / 3 * k_2 + 1 / 3 * k_3 + 1 / 6 * k_4
 
 
 
-    def last_orbits(s, ecc_start, tau_f, num_points, to_t_a=False):
+    def last_orbits(s, ecc_start, t_f, num_points, a_min=0):
         '''
         simulate the last few orbits before the stars collide
         ecc_start: eccentricty to simulate the last few orbits from
-        tau_f: final time to end simulation at
+        t_f: final time to end simulation at
         num_points: Number of points to include in simulation
-        Returns: (tau, ecc, a, T, th, h_p, h_c) at each point included in simulation
+        Returns: (t, ecc, a, T, th, h_p, h_c) at each point included in simulation
         '''
-        dtau = tau_f / num_points
-        tau_array = dtau * np.arange(num_points)
-        ecc_array = np.empty(tau_array.size); ecc_array[0] = ecc_start; s.ecc = ecc_start
+        dt = t_f / num_points
+        t_array = dt* np.arange(num_points)
+        ecc_array = np.empty(t_array.size); ecc_array[0] = ecc_start; s.ecc = ecc_start
 
-        a_array = np.empty(tau_array.size)
+        a_array = np.empty(t_array.size)
         a_start = s.a_e(ecc_start); a_array[0] = a_start; s.a = a_start
 
-        T_array = np.empty(tau_array.size)
+        T_array = np.empty(t_array.size)
         T_start = np.sqrt((4 * np.pi ** 2 * s.m_red * a_start ** 3) / (s.G * s.m_1 * s.m_2))
         T_array[0] = T_start; s.T = T_start
 
-        th_array = np.empty(tau_array.size)
+        th_array = np.empty(t_array.size)
         th_start = s.th(t=0)
         th_array[0] = th_start
 
-        h_p_array = np.empty(tau_array.size)
+        h_p_array = np.empty(t_array.size)
         h_p_array[0] = s.h_plus(th_start)
 
-        h_c_array = np.empty(tau_array.size)
+        h_c_array = np.empty(t_array.size)
         h_c_array[0] = s.h_cross(th_start)
 
-        for i in range(1, tau_array.size):
+        for i in range(1, t_array.size):
             #Step eccentricity; then, update and calculate a, T, h_plus, h_cross
             print(f'step: {i}')
-            e_next = s.ecc_step(s.ecc, dtau)
+            e_next = s.ecc_step(s.ecc, dt)
 
-            if np.isnan(e_next):
-                tau_array = tau_array[:i-1]
+            if np.isnan(e_next) or s.a < a_min:
+                t_array = t_array[:i-1]
                 ecc_array = ecc_array[:i-1]
                 a_array = a_array[:i-1]
                 T_array = T_array[:i-1]
@@ -491,19 +485,16 @@ class Binary_System:
             T_array[i] = T_next
             s.T = T_next
 
-            th_next = s.th(t=tau_array[i])
+            th_next = s.th(t=t_array[i])
             th_array[i] = th_next
 
             h_p_array[i] = s.h_plus(th_next)
             h_c_array[i] = s.h_cross(th_next)
 
 
-        return (tau_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
+        return (t_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
 
-
-
-
-    def animate_last_orbits(s, ecc_start, tau_f, num_points):
+    def animate_last_orbits(s, ecc_start, t_f, num_points):
         def r(th_array, a_array, ecc_array):
             '''
             Return x, y position of star as a and ecc decay
@@ -511,7 +502,7 @@ class Binary_System:
             r = a_array * (1 - ecc_array) * (1 + ecc_array) / (1 + ecc_array * np.cos(th_array))
             return r
 
-        def animate(f, tau, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2):
+        def animate(f, t, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2):
             '''
             f: Frames being used as a proxy for parameter
             r_1: List of position vectors at each theta for orbit 1
@@ -526,17 +517,19 @@ class Binary_System:
             orbit_1.set_data(r_1[0, :f], r_1[1, :f])
             orbit_2.set_data(r_2[0, :f], r_2[1, :f])
 
-            line_1.set_data(tau[:f], h_p[:f])
-            line_2.set_data(tau[:f], h_c[:f])
+            line_1.set_data(t[:f], h_p[:f])
+            line_2.set_data(t[:f], h_c[:f])
 
             return [orbit_1, orbit_2, line_1, line_2]
 
-        tau, ecc, a, T, th, h_p, h_c = s.last_orbits(ecc_start, tau_f, num_points)
+        t, ecc, a, T, th, h_p, h_c = s.last_orbits(ecc_start, t_f, num_points)
+
 
         a_1 = a / (1 + s.beta); a_2 = a - a_1
         r_decay = r(th,a_1,ecc)
-        r_1 = np.array([r_decay * np.cos(th), r_decay * np.sin(th)])
-        r_2 = np.array([-r_decay * np.cos(th), -r_decay * np.sin(th)])
+        t = to_days(t)
+        r_1 = to_au(np.array([r_decay * np.cos(th), r_decay * np.sin(th)]))
+        r_2 = to_au(np.array([-r_decay * np.cos(th), -r_decay * np.sin(th)]))
 
 
         fig, axes = plt.subplots(2,figsize=(7,7))
@@ -544,7 +537,7 @@ class Binary_System:
         axes[0].set_xlim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
         axes[0].set_ylim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
 
-        axes[1].set_xlim(tau.min(), tau.max())
+        axes[1].set_xlim(t.min(), t.max())
         axes[1].set_ylim(min(1.1 * min(h_p.min(), h_c.min()), 0.9 * min(h_p.min(), h_c.min())),
                          max(1.1 * max(h_p.max(), h_c.max()), 0.9 * max(h_p.max(), h_c.max())))
 
@@ -555,16 +548,16 @@ class Binary_System:
         orbit_2, = axes[0].plot(r_2[0, :1], r_2[1, :1], 'o-', color='purple', \
                         label='Secondary', mfc='r', mec='r', markersize=10, markevery=[-1])
 
-        line_1, = axes[1].plot(tau[:1], h_p[:1], color='green', label='h-plus')
-        line_2, = axes[1].plot(tau[:1], h_c[:1], color='blue', label='h-cross')
+        line_1, = axes[1].plot(t[:1], h_p[:1], color='green', label='h-plus')
+        line_2, = axes[1].plot(t[:1], h_c[:1], color='blue', label='h-cross')
 
         axes[0].legend(loc='upper right')
         axes[1].legend(loc='upper right')
 
-        axes[0].set_xlabel('x')
-        axes[0].set_ylabel('y')
+        axes[0].set_xlabel('x (au)')
+        axes[0].set_ylabel('y (au)')
 
-        axes[1].set_xlabel(r'$\tau$')
+        axes[1].set_xlabel(r'$t$ (days)')
         axes[1].set_ylabel('Wave Amplitude')
 
         #Choose interval to complete an orbit in 10s
@@ -574,35 +567,9 @@ class Binary_System:
             interval = 1 #interval cannot be less than 1
 
         ani = FuncAnimation(fig, animate, frames=th.size, interval=1, \
-                            fargs=[tau, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2],repeat=False)
+                            fargs=[t, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2],repeat=False)
 
         plt.show()
-
-    def ecc_euler(s, ecc_start, tau_f, num_points):
-        '''
-        animate the last few orbits before the stars collide
-        '''
-        dtau = tau_f / num_points
-        tau_array = dtau * np.arange(num_points)
-        ecc_array = np.empty(tau_array.size); ecc_array[0] = ecc_start
-
-        #proceed with Euler steps of size tau through back to where star blow up
-        for i in range(1, tau_array.size):
-            e_n = ecc_array[i - 1]
-
-            e_next = e_n + dtau * (s.de_dtau(e=e_n))
-            ecc_array[i] = e_next
-            s.ecc = e_next
-
-            if np.isnan(e_next):
-                tau_array = tau_array[:i-1]
-                ecc_array = ecc_array[:i-1]
-                break
-
-        return (tau_array, ecc_array)
-
-
-
 
 if __name__ == '__main__':
     b = Binary_System(0.6, 1)
