@@ -435,6 +435,7 @@ class Binary_System:
         num_points: Number of points to include in simulation
         Returns: (t, ecc, a, T, th, h_p, h_c) at each point included in simulation
         '''
+        print('Starting Last Orbits...')
         dt = t_f / num_points
         t_array = dt* np.arange(num_points)
         ecc_array = np.empty(t_array.size); ecc_array[0] = ecc_start; s.ecc = ecc_start
@@ -458,10 +459,11 @@ class Binary_System:
 
         for i in range(1, t_array.size):
             #Step eccentricity; then, update and calculate a, T, h_plus, h_cross
-            print(f'step: {i}')
+            #print(f'step: {i}')
             e_next = s.ecc_step(s.ecc, dt)
 
             if np.isnan(e_next) or s.a < a_min:
+                print(f'Last step: {i}')
                 t_array = t_array[:i-1]
                 ecc_array = ecc_array[:i-1]
                 a_array = a_array[:i-1]
@@ -491,7 +493,7 @@ class Binary_System:
             h_p_array[i] = s.h_plus(th_next)
             h_c_array[i] = s.h_cross(th_next)
 
-
+        print(f'Last orbits completed with parameters: ecc_0={ecc_start}, t_f={t_f}, n={num_points}, a_min={a_min}')
         return (t_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
 
     def animate_last_orbits(s, ecc_start, t_f, num_points):
