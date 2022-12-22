@@ -77,7 +77,7 @@ class Binary_System:
         s.e_cross = np.tensordot(s.a_hat, s.d_hat, 0) + np.tensordot(s.d_hat, s.a_hat, 0)
 
         if t == None:
-            s.t = np.linspace(0, s.T, 2000)
+            s.t = np.linspace(0, s.T, 1000)
         else:
             s.t = t
 
@@ -127,14 +127,14 @@ class Binary_System:
         Plus polarization, as derived in Wahlquist
         '''
         return s.H() * (np.cos(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
-            - np.sin(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
+            - np.sin(2 * s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
     def h_cross(s, th):
         '''
         Cross polarization, as derived in Wahlquist
         '''
         return s.H() * (np.sin(2 * s.phi) * (s.A_0(th) + s.ecc * s.A_1(th) + s.ecc ** 2 * s.A_2(th)) \
-            + np.cos(s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
+            + np.cos(2 * s.phi) * (s.B_0(th) + s.ecc * s.B_1(th) + s.ecc ** 2 * s.B_2(th)))
 
     def areal_velocity_1(s):
         def r(th, a_p, ecc_p):
@@ -178,7 +178,7 @@ class Binary_System:
 
         return da_2
 
-    def animate_orbits(s, out_file=None):
+    def animate_orbits(s, square=True, out_file=None):
         '''
         Visualize star orbit (in the orbital plane)
         '''
@@ -218,11 +218,17 @@ class Binary_System:
         h_p = s.h_plus(th)
         h_c = s.h_cross(th)
 
-        fig, axes = plt.subplots(2,figsize=(7,7))
+        fig, axes = plt.subplots(2,figsize=(8,7))
 
         #Frame about the larger orbit
-        axes[0].set_xlim([1.1 * min(to_au(r_1[0].min()), to_au(r_2[0].min())), 1.1 * max(to_au(r_1[0].max()), to_au(r_2[0].max()))])
-        axes[0].set_ylim([-1.1 * to_au(max(s.b_1, s.b_2)), 1.1 * to_au(max(s.b_1, s.b_2))])
+        if square:
+            axes[0].set_aspect('equal')
+            axes[0].set_xlim([1.1 * min(to_au(r_1[0].min()), to_au(r_2[0].min())), 1.1 * max(to_au(r_1[0].max()), to_au(r_2[0].max()))])
+            axes[0].set_ylim([-1.1 * to_au(max(s.b_1, s.b_2)), 1.1 * to_au(max(s.b_1, s.b_2))])
+        else:
+            axes[0].set_xlim([1.1 * min(to_au(r_1[0].min()), to_au(r_2[0].min())), 1.1 * max(to_au(r_1[0].max()), to_au(r_2[0].max()))])
+            axes[0].set_ylim([-1.1 * to_au(max(s.b_1, s.b_2)), 1.1 * to_au(max(s.b_1, s.b_2))])
+
 
         axes[1].set_xlim(to_days(s.t.min()), to_days(s.t.max()))
         axes[1].set_ylim(min(1.1 * min(h_p.min(), h_c.min()), 0.9 * min(h_p.min(), h_c.min())),
@@ -244,19 +250,22 @@ class Binary_System:
         axes[0].set_xlabel('x (au)')
         axes[0].set_ylabel('y (au)')
 
-        axes[1].set_xlabel('t (s)')
+        axes[1].set_xlabel('t (days)')
         axes[1].set_ylabel('Wave Amplitude')
 
         #Choose interval to complete an orbit in 10s
         n_points = s.t.size / (s.t.max() / s.T)
 
-        if 10 ** 3 / n_points > 1:
-            interval = (10 ** 3) / (n_points)  #interval measured in milliseconds
+        if 2000 / n_points > 1:
+            interval = (2000) / (n_points)  #interval measured in milliseconds
         else:
             interval = 1 #Interval cannot be less than 1
 
+        print(interval)
+        print(n_points)
+
         ani = FuncAnimation(fig, animate, frames=th.size, interval=interval, \
-                            fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2], repeat=False)
+                            fargs=[r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2], repeat=True)
 
         s_ecc = r'$\epsilon=$' + str(round(s.ecc, 2))
         s_phi = r'$\phi=$' + str(round(s.phi, 2))
@@ -267,7 +276,7 @@ class Binary_System:
         axes[0].set_title(f'Orbit Waves: {s_ecc}, {s_phi}, {s_i}, {s_m_1}, {s_m_2}')
 
         if out_file:
-            writergif = PillowWriter(fps=240)
+            writergif = PillowWriter(fps=400)
             ani.save(out_file, writer=writergif)
 
         plt.show()
@@ -294,8 +303,8 @@ class Binary_System:
         h_c = s.h_cross(s.th(s.t))
 
 
-        ax.plot(s.t, h_p, color='Green', label=r'$h_+$')
-        ax.plot(s.t, h_c, color='Blue', label=r'$h_x$')
+        ax.plot(to_days(s.t), h_p, color='Green', label=r'$h_+$')
+        ax.plot(to_days(s.t), h_c, color='Blue', label=r'$h_x$')
 
 
 
@@ -305,7 +314,7 @@ class Binary_System:
         For a veriety of eccentricities
         And plot them in the same figure
         '''
-        fig, axes = plt.subplots(3, int(np.ceil(iterations / 3)), sharey=True, sharex=True)
+        fig, axes = plt.subplots(3, int(np.ceil(iterations / 3)), figsize=(8,8), sharey=True, sharex=True)
         plt.style.use('ggplot')
 
         inc = 1 / (iterations)
@@ -313,12 +322,13 @@ class Binary_System:
             s.ecc = i * inc
             axes[int(i / 3), i % 3].set_title(r'$\epsilon = $' + str(round(s.ecc, 2)))
             s.wave_plots(axes[int(i / 3), i % 3])
+            axes[int(i / 3), i % 3].legend(loc='upper left')
 
         s_ecc = r'$\epsilon$'
         s_phi = r'$\phi=$' + str(round(s.phi, 2))
         s_i = r'$i=$' + str(round(s.i, 2))
-        s_m_1 = r'$m_1=$' + str(round(s.m_1, 2))
-        s_m_2 = r'$m_2=$' + str(round(s.m_2, 2))
+        s_m_1 = r'$m_1=$' + str(round(to_sm(s.m_1), 2)) + r'$M_{\odot}$'
+        s_m_2 = r'$m_2=$' + str(round(to_sm(s.m_2), 2)) + r'$M_{\odot}$'
 
         fig.suptitle(f'Iterate {s_ecc}: {s_phi}, {s_i}, {s_m_1}, {s_m_2}')
 
@@ -326,55 +336,63 @@ class Binary_System:
 
         if show: plt.show()
 
-    def iterate_i(s, iterations=9, show=True, save=False):
+    def iterate_i(s, show=True, save=False):
         '''
         Function to plot wave forms
         For a veriety of inclinations
         And plot them in the same figure
         '''
-        fig, axes = plt.subplots(3, int(np.ceil(iterations / 3)), sharey=True, sharex=True)
+        iterations = 9
+        fig, axes = plt.subplots(3, int(np.ceil(iterations / 3)), figsize=(8,8), sharey=True, sharex=True)
         plt.style.use('ggplot')
 
-        inc = 2 * np.pi / (iterations)
+        inc = 2 * np.pi / (iterations - 1)
+        labels = [r'0', r'$\frac{\pi}{4}$', r'$\frac{\pi}{2}$', r'$\frac{3\pi}{4}$', r'$\pi$', \
+                  r'$\frac{5\pi}{4}$', r'$\frac{3\pi}{2}$', r'$\frac{7\pi}{4}$', r'$2\pi$']
         for i in range(iterations):
             s.i = i * inc
-            axes[int(i / 3), i % 3].set_title(r'$i = $' + str(round(s.i, 2)))
+            axes[int(i / 3), i % 3].set_title(r'$i = $' + labels[i])
             s.wave_plots(axes[int(i / 3), i % 3])
+            axes[int(i / 3), i % 3].legend(loc='upper center')
 
-        s_ecc = r'$\epsilon$' + str(round(s.ecc, 2))
+        s_ecc = r'$\epsilon=$' + str(round(s.ecc, 2))
         s_phi = r'$\phi=$' + str(round(s.phi, 2))
         s_i = r'$i$'
-        s_m_1 = r'$m_1=$' + str(round(s.m_1, 2))
-        s_m_2 = r'$m_2=$' + str(round(s.m_2, 2))
+        s_m_1 = r'$m_1=$' + str(round(to_sm(s.m_1), 2)) + r'$M_{\odot}$'
+        s_m_2 = r'$m_2=$' + str(round(to_sm(s.m_2), 2)) + r'$M_{\odot}$'
 
-        fig.suptitle(f'Iterate {s_i}: {s_phi}, {s_i}, {s_m_1}, {s_m_2}')
+        fig.suptitle(f'Iterate {s_i}: {s_phi}, {s_ecc}, {s_m_1}, {s_m_2}')
 
         if save: plt.savefig('Inclination_Plots.png')
 
         if show: plt.show()
 
-    def iterate_phi(s, iterations=9, show=True, save=False):
+    def iterate_phi(s, show=True, save=False):
         '''
         Function to plot wave forms
         For a veriety of orientations
         And plot them in the same figure
         '''
-        fig, axes = plt.subplots(3, int(np.ceil(iterations / 3)), sharey=True, sharex=True)
+        iterations = 9
+        fig, axes = plt.subplots(3, int(np.ceil(iterations / 3)), figsize=(8,8), sharey=True, sharex=True)
 
-        inc = 2 * np.pi / (iterations)
+        inc = 2 * np.pi / (iterations-1)
+        labels = [r'0', r'$\frac{\pi}{4}$', r'$\frac{\pi}{2}$', r'$\frac{3\pi}{4}$', r'$\pi$', \
+                  r'$\frac{5\pi}{4}$', r'$\frac{3\pi}{2}$', r'$\frac{7\pi}{4}$', r'$2\pi$']
         for i in range(iterations):
-            s.th_n = i * inc
+            #s.th_n = i * inc
             s.phi = i * inc #Incriment both the physical angle phi, and the arbitrary
                             #angle th_n, which is the choice of where the
                             #nodeline is oriented in the binary system
-            axes[int(i / 3), i % 3].set_title(r'$\phi = $' + str(round(s.th_n / np.pi, 2)) + r'$\pi$')
+            axes[int(i / 3), i % 3].set_title(r'$\phi = $' + labels[i])
             s.wave_plots(axes[int(i / 3), i % 3])
+            axes[int(i / 3), i % 3].legend(loc='upper center')
 
-        s_ecc = r'$\epsilon$' + str(round(s.ecc),2)
+        s_ecc = r'$\epsilon=$' + str(round(s.ecc,2))
         s_phi = r'$\phi$'
         s_i = r'$i=$' + str(round(s.i, 2))
-        s_m_1 = r'$m_1=$' + str(round(s.m_1, 2))
-        s_m_2 = r'$m_2=$' + str(round(s.m_2, 2))
+        s_m_1 = r'$m_1=$' + str(round(to_sm(s.m_1), 2)) + r'$M_{\odot}$'
+        s_m_2 = r'$m_2=$' + str(round(to_sm(s.m_2), 2)) + r'$M_{\odot}$'
 
         fig.suptitle(f'Iterate {s_phi}: {s_ecc}, {s_i}, {s_m_1}, {s_m_2}')
 
@@ -382,6 +400,8 @@ class Binary_System:
 
         if show: plt.show()
 
+
+    #Check for scaling factor
     def a_e(s, ecc):
         '''
         semi-major axis as a function of eccentricity
@@ -393,6 +413,7 @@ class Binary_System:
         return s.a_0 * g(ecc) / g(s.ecc_0)
 
 
+    #Check for scaling factor
     def de_dt(s, e=None):
         '''
         Differential equation for eccentricity
@@ -413,6 +434,7 @@ class Binary_System:
         s.T = np.sqrt((4 * np.pi ** 2 * s.m_red * s.a ** 3) / (s.G * s.m_1 * s.m_2))
         s.a_til = s.a / s.R_star
         return (s.a, s.a_til, s.T)
+
 
     def ecc_step(s, e_n, dt):
         '''
@@ -437,7 +459,7 @@ class Binary_System:
         '''
         print('Starting Last Orbits...')
         dt = t_f / num_points
-        t_array = dt* np.arange(num_points)
+        t_array = dt * np.arange(num_points)
         ecc_array = np.empty(t_array.size); ecc_array[0] = ecc_start; s.ecc = ecc_start
 
         a_array = np.empty(t_array.size)
@@ -483,6 +505,7 @@ class Binary_System:
             s.a = a_next
 
             #Store period history; update period
+            #MAYBE THE 2PI I AM LOOKING FOR??
             T_next = np.sqrt((4 * np.pi ** 2 * s.m_red * a_next ** 3) / (s.G * s.m_1 * s.m_2))
             T_array[i] = T_next
             s.T = T_next
@@ -495,6 +518,54 @@ class Binary_System:
 
         print(f'Last orbits completed with parameters: ecc_0={ecc_start}, t_f={t_f}, n={num_points}, a_min={a_min}')
         return (t_array, ecc_array, a_array, T_array, th_array, h_p_array, h_c_array)
+
+    def plot_last_orbits(s, ecc_start, t_f, num_points):
+        def r(th_array, a_array, ecc_array):
+            '''
+            Return x, y position of star as a and ecc decay
+            '''
+            r = a_array * (1 - ecc_array) * (1 + ecc_array) / (1 + ecc_array * np.cos(th_array))
+            return r
+
+        t, ecc, a, T, th, h_p, h_c = s.last_orbits(ecc_start, t_f, num_points)
+
+
+        a_1 = a / (1 + s.beta); a_2 = a - a_1
+        r_decay = r(th,a_1,ecc)
+        t = to_days(t)
+        r_1 = to_au(np.array([r_decay * np.cos(th), r_decay * np.sin(th)]))
+        r_2 = to_au(np.array([-r_decay * np.cos(th), -r_decay * np.sin(th)]))
+
+
+        fig, axes = plt.subplots(2,figsize=(9,7))
+        fig.suptitle(r'$\epsilon_i=$' + f'{ecc[0]}' + r' $m_1=$' + f'{round(to_sm(s.m_1),2)}' + r' $M_{\odot}$ ' + r'$m_2=$' + f'{round(to_sm(s.m_2),2)}' + r' $M_{\odot}$')
+        #Frame about the larger orbit
+        axes[0].set_xlim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
+        axes[0].set_ylim([1.1 * min(r_1[0].min(), r_2[0].min()), 1.1 * max(r_1[0].max(), r_2[0].max())])
+
+        axes[1].set_xlim(t.min(), t.max())
+        axes[1].set_ylim(min(1.1 * min(h_p.min(), h_c.min()), 0.9 * min(h_p.min(), h_c.min())),
+                         max(1.1 * max(h_p.max(), h_c.max()), 0.9 * max(h_p.max(), h_c.max())))
+
+        #Artist objects returned from plot function and to be used in animation
+        axes[0].plot(r_1[0,:], r_1[1,:], color='pink')
+
+        axes[0].plot(r_2[0,:], r_2[1,:], color='purple')
+
+        axes[1].plot(t, h_p, color='green', label='h-plus')
+        axes[1].plot(t, h_c, color='blue', label='h-cross')
+
+        axes[0].legend(loc='upper right')
+        axes[1].legend(loc='upper right')
+
+        axes[0].set_xlabel('x (au)')
+        axes[0].set_ylabel('y (au)')
+
+        axes[1].set_xlabel(r'$t$ (s)')
+        axes[1].set_ylabel('Wave Amplitude')
+
+        print('Plotting Last Orbits')
+        fig.show()
 
     def animate_last_orbits(s, ecc_start, t_f, num_points):
         def r(th_array, a_array, ecc_array):
@@ -525,11 +596,13 @@ class Binary_System:
             return [orbit_1, orbit_2, line_1, line_2]
 
         t, ecc, a, T, th, h_p, h_c = s.last_orbits(ecc_start, t_f, num_points)
+        t = t[0:-1:1]; ecc = ecc[0:-1:1]; a = a[0:-1:1]; T = T[0:-1:1]
+        th = th[0:-1:1]; h_p = h_p[0:-1:1]; h_c = h_c[0:-1:1]
 
 
         a_1 = a / (1 + s.beta); a_2 = a - a_1
         r_decay = r(th,a_1,ecc)
-        t = to_days(t)
+        t = t / pc.c
         r_1 = to_au(np.array([r_decay * np.cos(th), r_decay * np.sin(th)]))
         r_2 = to_au(np.array([-r_decay * np.cos(th), -r_decay * np.sin(th)]))
 
@@ -569,7 +642,7 @@ class Binary_System:
             interval = 1 #interval cannot be less than 1
 
         ani = FuncAnimation(fig, animate, frames=th.size, interval=1, \
-                            fargs=[t, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2],repeat=False)
+                            fargs=[t, r_1, r_2, h_p, h_c, orbit_1, orbit_2, line_1, line_2],repeat=True)
 
         plt.show()
 
